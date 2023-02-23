@@ -169,53 +169,54 @@ def system():
     df_production_select = pd.read_csv(link, sep="\t", na_values=['NA','\\N'],
             dtype={'startYear':'int16' ,'runtimeMinutes':'int16','numVotes':'int32','averageRating': 'float16'})
     st.title("Movie - Recommandation")
-    search = st.text_input("Saisir le nom ou l'identifiant du film : ", key="film").capitalize()
+    #search = st.text_input("Saisir le nom ou l'identifiant du film : ", key="film").capitalize()
+    movie_list = df_production_select['primaryTitle'].values
+    search = st.selectbox("Saisir le nom du film : ", movie_list )
 
+    #if len(df_production_select[df_production_select.values == search]) != 0 :
+    @st.experimental_memo
+    def algo_KNN(df,n):
+        X = df.select_dtypes(include=['int64']).columns
+        distanceKNN = NearestNeighbors(n_neighbors=n).fit(df[X])
+        model = df[df.values == search][X]
+        neighbors = distanceKNN.kneighbors(model)
+        resultat_df = df.iloc[neighbors[1][0]].sort_values('numVotes', ascending=False)
+        return resultat_df
 
-    if len(df_production_select[df_production_select.values == search]) != 0 :
-        @st.experimental_memo
-        def algo_KNN(df,n):
-            X = df.select_dtypes(include=['int64']).columns
-            distanceKNN = NearestNeighbors(n_neighbors=n).fit(df[X])
-            model = df[df.values == search][X]
-            neighbors = distanceKNN.kneighbors(model)
-            resultat_df = df.iloc[neighbors[1][0]].sort_values('numVotes', ascending=False)
-            return resultat_df
-
-        resultat_df = algo_KNN(df_production_select,100)
-        # Selectionner tout les autres films du même réalisateur
-        search_pro = df_production_select[df_production_select.values == search].nconst
-        production_pro = df_production_select[df_production_select.nconst.isin(search_pro)]
-        # Concatenate le resultat de 'nconst' & 100 NearestNeighbors
-        df_new = pd.concat([resultat_df,production_pro], ignore_index=True)
-        # "Get_dummies()" à la colonne 'nconst' pour le nouveau dataFrame df_NearestNeighbors
-        #df_NearestNeighbors = df_NearestNeighbors.join(pd.get_dummies(df_NearestNeighbors.nconst, drop_first=True))
-        df_getDummies = df_new.nconst.str.get_dummies(',')
-        df_NearestNeighbors = pd.concat([df_new, df_getDummies],axis=1)
-        resultat_df_F = algo_KNN(df_NearestNeighbors,30)
+    resultat_df = algo_KNN(df_production_select,100)
+    # Selectionner tout les autres films du même réalisateur
+    search_pro = df_production_select[df_production_select.values == search].nconst
+    production_pro = df_production_select[df_production_select.nconst.isin(search_pro)]
+    # Concatenate le resultat de 'nconst' & 100 NearestNeighbors
+    df_new = pd.concat([resultat_df,production_pro], ignore_index=True)
+    # "Get_dummies()" à la colonne 'nconst' pour le nouveau dataFrame df_NearestNeighbors
+    #df_NearestNeighbors = df_NearestNeighbors.join(pd.get_dummies(df_NearestNeighbors.nconst, drop_first=True))
+    df_getDummies = df_new.nconst.str.get_dummies(',')
+    df_NearestNeighbors = pd.concat([df_new, df_getDummies],axis=1)
+    resultat_df_F = algo_KNN(df_NearestNeighbors,30)
         
-        # Créer un dict pour 'tconst' & 'originalTitle'
-        resultat_id = resultat_df_F.tconst.unique()
-        resultat_name = resultat_df_F.primaryTitle.unique()
-        dict_resultat = dict(zip(resultat_id,resultat_name))
-        resultat = []
+    # Créer un dict pour 'tconst' & 'originalTitle'
+    resultat_id = resultat_df_F.tconst.unique()
+    resultat_name = resultat_df_F.primaryTitle.unique()
+    dict_resultat = dict(zip(resultat_id,resultat_name))
+    resultat = []
 
-        for i, j in dict_resultat.items():
-            if len(resultat) == 10:
-                break
-            elif i != search and j != search and not j in resultat:
-                resultat.append(j)    
-        
-        df_resultat = resultat_df_F[resultat_df_F.primaryTitle.isin(resultat)].iloc[:,1:7]
-        df_resultat.drop_duplicates(subset=['primaryTitle'], inplace=True)
-        df_resultat.averageRating = df_resultat.averageRating.apply(lambda x: format(x, '.2f'))
-        # Montrer un dataframe des films recommandés
-        st.write("Les 10 films recommandés:") 
-        st.dataframe(df_resultat)
+    for i, j in dict_resultat.items():
+        if len(resultat) == 10:
+            break
+        elif i != search and j != search and not j in resultat:
+            resultat.append(j)    
+    
+    df_resultat = resultat_df_F[resultat_df_F.primaryTitle.isin(resultat)].iloc[:,1:7]
+    df_resultat.drop_duplicates(subset=['primaryTitle'], inplace=True)
+    df_resultat.averageRating = df_resultat.averageRating.apply(lambda x: format(x, '.2f'))
+    # Montrer un dataframe des films recommandés
+    st.write("Les 10 films recommandés:") 
+    st.dataframe(df_resultat)
 
        
-    else : 
-        st.write("Attention! Saisir un nom/id correct!")
+    #else : 
+    #st.write("Attention! Saisir un nom/id correct!")
         
 app = MultiApp()
 
